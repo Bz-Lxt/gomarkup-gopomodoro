@@ -1,0 +1,43 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+backend/bin/
+backend/coverage.out
+backend/coverage.html
+
+# Go
+vendor/
+
+# Node
+node_modules/
+frontend-user/dist/
+frontend-user/.vite/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test / cache
+.pytest_cache/
+playwright-report/
+test-results/
+coverage/
+.cache/
+
+# Logs
+*.log
