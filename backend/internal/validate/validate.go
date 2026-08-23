@@ -16,7 +16,14 @@ func Fail(field, msg string) error {
 
 func RequiredString(field, v string, min, max int) (string, error) {
 	v, problem := requiredStringProblem(field, v, min, max)
-	return v, problem
+	if problem != nil {
+		return v, problem
+	}
+	// Return an untyped nil so the error interface is truly nil; returning the
+	// (*AppError)(nil) from requiredStringProblem directly would produce a
+	// non-nil error interface (typed-nil trap) and cause valid input to be
+	// treated as a failure.
+	return v, nil
 }
 
 func requiredStringProblem(field, v string, min, max int) (string, *httpx.AppError) {
