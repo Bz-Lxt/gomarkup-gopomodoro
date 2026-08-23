@@ -18,14 +18,21 @@ func (d *DB) Migrate(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", advisoryLockKey); err != nil {
 		return fmt.Errorf("advisory lock: %w", err)
 	}
+	// Unlock must run before conn.Close() returns the connection to the pool.
+	// pg_advisory_lock is session-scoped: if the connection is returned to the
+	// pool while still holding the lock, it blocks other instances during
+	// rolling deploys. Use context.Background() so cleanup runs even when the
+	// caller's context is cancelled (e.g. deadline exceeded mid-migration).
 	defer func() {
-		_, _ = conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockKey)
+		if _, err := conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", advisoryLockKey); err != nil {
+			logger.L().Error("advisory unlock failed", "err", err)
+		}
 	}()
-	defer conn.Close()
 
 	if _, err := conn.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
