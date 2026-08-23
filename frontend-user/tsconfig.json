@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "lib": ["ES2021", "DOM"],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"]
+}
