@@ -30,7 +30,7 @@ func Created(c *gin.Context, data any) {
 func Fail(c *gin.Context, err error) {
 	if ae, ok := IsAppError(err); ok {
 		if ae.HTTPStatus >= 500 {
-			logger.L().Error("request failed", "code", ae.Code, "err", ae.Message)
+			logger.L().Error("request failed", "code", ae.Code, "err", err)
 		}
 		c.JSON(ae.HTTPStatus, Envelope{OK: false, Error: &ErrorPayload{
 			Code: ae.Code, Message: ae.Message, Details: ae.Details,

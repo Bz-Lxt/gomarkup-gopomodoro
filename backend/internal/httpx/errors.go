@@ -1,6 +1,9 @@
 package httpx
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type AppError struct {
 	Code       string
@@ -39,6 +42,9 @@ func IsAppError(err error) (*AppError, bool) {
 	if err == nil {
 		return nil, false
 	}
-	ae, ok := err.(*AppError)
-	return ae, ok
+	var ae *AppError
+	if errors.As(err, &ae) {
+		return ae, true
+	}
+	return nil, false
 }
