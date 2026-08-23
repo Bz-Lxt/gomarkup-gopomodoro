@@ -44,6 +44,9 @@ func (a *AuditLog) Append(r TransitionRecord) {
 	a.ring = append(a.ring, r)
 }
 
+// Recent returns a defensive copy of the last n transition records.
+// Callers may freely annotate the returned slice without corrupting the
+// internal audit trail: the read path must never write back into the ring.
 func (a *AuditLog) Recent(n int) []TransitionRecord {
 	if a == nil {
 		return nil
@@ -53,7 +56,9 @@ func (a *AuditLog) Recent(n int) []TransitionRecord {
 	if n <= 0 || n > len(a.ring) {
 		n = len(a.ring)
 	}
-	return a.ring[len(a.ring)-n:]
+	out := make([]TransitionRecord, n)
+	copy(out, a.ring[len(a.ring)-n:])
+	return out
 }
 
 func (a *AuditLog) CountByTo(state model.PomodoroState) int {
