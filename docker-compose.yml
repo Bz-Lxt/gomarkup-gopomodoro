@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+      POSTGRES_USER: gopomo
+      POSTGRES_PASSWORD: gopomo_dev
+      POSTGRES_DB: gopomodoro
+    ports:
+      - "35174:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gopomo -d gopomodoro"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - gopomo
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      APP_ENV: production
+      HTTP_ADDR: :8080
+      DATABASE_URL: postgres://gopomo:gopomo_dev@postgres:5432/gopomodoro?sslmode=disable
+      JWT_SECRET: gopomo-dev-jwt-secret-change-me
+      FOCUS_DURATION_SECONDS: "1500"
+      GRACE_PERIOD_SECONDS: "120"
+      LOG_LEVEL: info
+      ALLOW_TEST_COMPLETE: "false"
+    ports:
+      - "35173:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - gopomo
+
+  frontend:
+    build:
+      context: ./frontend-user
+      dockerfile: Dockerfile
+    ports:
+      - "35172:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - gopomo
+
+  qa:
+    build:
+      context: ./tests
+    environment:
+      TZ: Asia/Shanghai
+      API_BASE: http://backend:8080/api/v1
+      E2E_BASE: http://frontend
+      PYTHONIOENCODING: utf-8
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - gopomo
+    profiles:
+      - qa
+    command: ["sleep", "infinity"]
+
+volumes:
+  pgdata:
+
+networks:
+  gopomo:
+    driver: bridge
