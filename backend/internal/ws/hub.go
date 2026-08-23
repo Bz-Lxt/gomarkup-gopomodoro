@@ -65,36 +65,61 @@ func (h *Hub) Subscribe(c *client, mid uuid.UUID) {
 	h.mu.Unlock()
 }
 
-func (h *Hub) BroadcastSession(userID model.ID, view pomodoro.SessionView) {
+// clientsForUser returns a snapshot of the clients subscribed to a user's
+// session updates. The snapshot is collected under the read lock so callers
+// may deliver messages without holding it; this is required because
+// connection removal (Remove) mutates the underlying maps concurrently with
+// broadcasts. Iterating the live map after releasing the lock is what
+// previously triggered "concurrent map iteration and map write".
+func (h *Hub) clientsForUser(userID model.ID) []*client {
 	h.mu.RLock()
-	clients := h.byUser[userID]
+	src := h.byUser[userID]
+	out := make([]*client, 0, len(src))
+	for _, c := range src {
+		out = append(out, c)
+	}
 	h.mu.RUnlock()
-	for _, c := range clients {
-		h.trySend(c, Outbound{Type: TypeSession, Payload: view})
-		h.trySend(c, Outbound{Type: TypeTick, Payload: map[string]any{
-			"session_id":   view.Session.ID,
-			"state":        view.Session.State,
-			"remaining_ms": view.RemainingMS,
-			"server_now":   time.Now().Format(time.RFC3339),
-		}})
+	return out
+}
+
+// subscribers returns a snapshot of clients watching the given milestone.
+func (h *Hub) subscribers(milestoneID model.ID) []*client {
+	h.mu.RLock()
+	out := make([]*client, 0, len(h.clients))
+	for _, c := range h.clients {
+		if _, ok := c.milestones[milestoneID]; ok {
+			out = append(out, c)
+		}
+	}
+	h.mu.RUnlock()
+	return out
+}
+
+func (h *Hub) BroadcastSession(userID model.ID, view pomodoro.SessionView) {
+	tick := Outbound{Type: TypeTick, Payload: map[string]any{
+		"session_id":   view.Session.ID,
+		"state":        view.Session.State,
+		"remaining_ms": view.RemainingMS,
+		"server_now":   time.Now().Format(time.RFC3339),
+	}}
+	msg := Outbound{Type: TypeSession, Payload: view}
+	for _, c := range h.clientsForUser(userID) {
+		h.trySend(c, msg)
+		h.trySend(c, tick)
 	}
 }
 
 func (h *Hub) BroadcastGrace(userID model.ID, leftS int) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for _, c := range h.byUser[userID] {
-		h.trySend(c, Outbound{Type: TypeGrace, Payload: map[string]any{"remaining_s": leftS}})
+	msg := Outbound{Type: TypeGrace, Payload: map[string]any{"remaining_s": leftS}}
+	for _, c := range h.clientsForUser(userID) {
+		h.trySend(c, msg)
 	}
 }
 
 func (h *Hub) BroadcastBurndown(milestoneID model.ID, point model.BurndownPoint) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for _, c := range h.clients {
-		if _, ok := c.milestones[milestoneID]; ok {
-			h.trySend(c, Outbound{Type: TypeBurndown, Payload: point})
-		}
+	msg := Outbound{Type: TypeBurndown, Payload: point}
+	for _, c := range h.subscribers(milestoneID) {
+		h.trySend(c, msg)
 	}
 }
 
