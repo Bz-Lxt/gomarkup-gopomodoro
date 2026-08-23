@@ -33,11 +33,24 @@ func Open(ctx context.Context, dsn string) (*DB, error) {
 func (d *DB) Close() error { return d.SQL.Close() }
 
 func (d *DB) Tx(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := d.SQL.BeginTx(context.Background(), nil)
+	// Reject already-canceled contexts before acquiring a connection
+	// or beginning a transaction. A timed-out / disconnected request
+	// must never start a transaction, let alone run the callback or commit.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	tx, err := d.SQL.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	// Re-check after the callback succeeds: if the request was
+	// canceled while the callback ran, roll back instead of committing.
+	// tx.Commit() does not accept a context, so we must guard explicitly.
+	if err := ctx.Err(); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
