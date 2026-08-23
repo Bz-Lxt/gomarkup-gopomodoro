@@ -1,0 +1,12 @@
+.git
+.idea
+.vscode
+node_modules
+frontend-user/dist
+frontend-user/node_modules
+backend/bin
+backend/coverage.out
+**/.DS_Store
+**/playwright-report
+**/test-results
+**/*.log
